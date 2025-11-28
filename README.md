@@ -1,101 +1,54 @@
-# Prototipo Streamlit - DummyRepo
+# Prototipo Streamlit - DummyRepo (estado actualizado)
 
-Este repositorio contiene un prototipo de dashboard construido con Streamlit y una pequeña capa ETL de ejemplo. Durante el arranque se instala un `DualLogger` que duplica la salida a consola y a un fichero de log (`info.log`) e intenta capturar la salida de `logging` para que los mensajes (incluyendo los de Streamlit) queden registrados.
+Este repositorio contiene un prototipo de dashboard Streamlit con una capa ETL de ejemplo.
+El launcher (`ControlConfigurationApp.py`) instala un `DualLogger` que duplica la salida a consola y a `info.log`.
 
-## Estructura relevante
+## Archivos clave
 
-```
-dummyRepo/
-├── ControlConfigurationApp.py       # Punto de entrada principal (script/launcher)
-├── setup.py                         # Empaquetado con cx_Freeze (incluye carpeta src)
-├── requirements.txt                 # Dependencias Python
-├── README.md                        # Este archivo
-├── src/
-│   ├── data_process/
-│   │   └── etl.py                   # Módulo ETL: genera datos simulados
-│   └── dashboards/
-│       ├── utils.py                 # Utilidades (ajuste de sys.path)
-│       └── dummy1/
-│           ├── app.py               # App Streamlit (Dashboard Airbus)
-│           └── dummy_script.py      # Script auxiliar (mensaje simple)
-├── mi_entorno/                      # Entorno virtual (opcional)
-└── build/                           # Artefactos compilados por cx_Freeze
-```
+- `ControlConfigurationApp.py`: lanzador principal. Sustituye `sys.stdout`/`sys.stderr` por `DualLogger`, reconfigura `logging` para apuntar a `sys.stdout` y lanza Streamlit con `stcli.main()`.
+- `setup.py`: configuración de `cx_Freeze` (incluye la carpeta `src` en el build y define la versión).
+- `requirements.txt`: dependencias mínimas (`streamlit`, `pandas`, `numpy`, `altair`, `cx-Freeze`).
+- `src/data_process/etl.py`: módulo ETL que genera datos simulados (Presión, Temperatura, Vibración).
+- `src/dashboards/dummy1/app.py`: aplicación Streamlit; ajusta `sys.path`, importa `etl`, muestra gráficos y tablas.
+- `src/dashboards/utils.py`: utilidades para ajustar `sys.path` desde carpetas profundas.
 
-## Comportamiento actual (resumen técnico)
+## Notas sobre el logger y Streamlit
 
-- El lanzador `ControlConfigurationApp.py` implementa `DualLogger`, que reemplaza `sys.stdout` y `sys.stderr` por un objeto que escribe tanto en la consola original como en `info.log` (archivo en la carpeta donde se ejecuta el script / ejecutable).
-- Tras reemplazar `sys.stdout` se reconfigura el módulo `logging` (con `logging.basicConfig(..., stream=sys.stdout, force=True)`) para intentar que los mensajes de logging (de Streamlit y otros módulos) se redirijan al `DualLogger` y queden en el fichero.
-- `configurar_entorno_usuario()` copia archivos de configuración (p. ej. `config.toml`, `credentials.toml`) desde la copia incluida en el build:
-  - ruta preferida: `dashboard/src/config/`
-  - fallback: `src/config/`
-- El script construye la ruta absoluta del `app.py` esperado en `dashboard/src/dashboards/dummy1/app.py` y usa un fallback `src/dashboards/dummy1/app.py` si el anterior no existe.
-- Cuando lanza Streamlit, añade flags que ayudan a que la URL se muestre y la salida no quede en modo headless:
-  - `--browser.serverAddress=localhost`
-  - `--server.headless=false`
+- `DualLogger` implementa `write()` y `flush()` y reemplaza `sys.stdout`/`sys.stderr`.
+- Inmediatamente después de reemplazar `sys.stdout`, `configurar_logs()` reconfigura `logging` con `stream=sys.stdout` para que los mensajes de logging (incluyendo los que Streamlit emite a través de logging) se registren en `info.log`.
+- Para capturar impresiones de muy bajo nivel (por ejemplo código C que escribe directamente al descriptor de archivo 1/2), se requeriría redirección de descriptores (`os.dup2`). Actualmente el proyecto usa la solución basada en `logging` y `DualLogger`.
 
-## Detalles por componente
+## Ejecución (PowerShell)
 
-### `ControlConfigurationApp.py`
-- `DualLogger` (clase): duplica la salida a la terminal original y a `info.log`. Implementa `write`, `flush` y maneja `isatty`/`fileno` a través de la terminal real cuando es posible.
-- `configurar_logs(application_path)`: crea/rota el log `info.log`, reemplaza `sys.stdout`/`sys.stderr` y reconfigura `logging` para usar `sys.stdout`.
-- `configurar_entorno_usuario(application_path)`: copia archivos de configuración de la copia incluida en el build hacia `~/.streamlit/`.
-- Lanzamiento: calcula `script_path` y ejecuta `stcli.main()`.
-
-### `src/data_process/etl.py`
-- `obtener_datos_sensores()`: genera un `DataFrame` de 20 filas con columnas `Presión`, `Temperatura`, `Vibración` (datos aleatorios).
-- `obtener_mensaje_estado()`: devuelve un string de estado ("Sistemas de datos: ONLINE").
-
-### `src/dashboards/dummy1/app.py` (Dashboard)
-- Ajusta `sys.path` subiendo 3 niveles para poder importar `src.data_process.etl`.
-- Configura la página con `st.set_page_config(...)` (título: "Dashboard Airbus").
-- Permite seleccionar vistas (Presión/Temperatura/Vibración) y muestra gráficos de línea y tablas.
-- Emite mensajes con `logging.info(...)` para marcar eventos (datos cargados, dashboard renderizado).
-
-### `src/dashboards/utils.py`
-- `ajustar_path_proyecto()`: función auxiliar para añadir la raíz del proyecto a `sys.path` (sube 2 niveles desde `dashboards/` en la implementación actual).
-
-## Cómo ejecutar (Windows, PowerShell)
-
-1) Activar entorno virtual (si existe):
+Activar entorno (si existe):
 
 ```powershell
 .\mi_entorno\Scripts\Activate.ps1
 ```
 
-2) Ejecutar el launcher (recomendado — captura logs y copia configuración):
+Ejecutar el lanzador (recomendado):
 
 ```powershell
 python ControlConfigurationApp.py
 ```
 
-3) O ejecutar Streamlit directamente para desarrollo:
+Ejecutar Streamlit en modo desarrollo:
 
 ```powershell
 streamlit run src/dashboards/dummy1/app.py
 ```
 
-4) Compilar con `cx_Freeze`:
+Compilar con cx_Freeze:
 
 ```powershell
 python setup.py build
 ```
 
-## Dependencias
+## Estado actual de los scripts
 
-Las dependencias principales que necesita el proyecto son (ver `requirements.txt`):
-
-- streamlit
-- pandas
-- numpy
-- altair
-- cx-Freeze (solo para empaquetado)
-
-## Notas y recomendaciones
-
-- Si no ves los banners de Streamlit en consola al ejecutar `ControlConfigurationApp.py`, revisa el orden de importación de Streamlit en tu entorno: algunos mensajes se pueden imprimir durante la importación del paquete, antes de que `sys.stdout` sea reemplazado. La implementación actual intenta reconfigurar `logging` para redirigir la salida a `DualLogger`, pero capturar impresiones a muy bajo nivel (C) podría requerir redirección de descriptores de archivo (`os.dup2`) si fuera necesario.
-- `configurar_entorno_usuario()` busca `config.toml` en la copia incluida en el build (`dashboard/src/config`), si tu `setup.py` copia los archivos a otra ruta, actualiza esta función.
-- Si quieres que genere un `requirements.txt` con versiones exactas desde `mi_entorno`, puedo activarlo y volcar `pip freeze`.
+- `ControlConfigurationApp.py`: logger activo, rutas al `app.py` calculadas con fallback.
+- `src/dashboards/dummy1/app.py`: vista interactiva con selección de métricas y visualizaciones.
+- `src/data_process/etl.py`: funciones `obtener_datos_sensores()` y `obtener_mensaje_estado()`.
 
 ---
 
