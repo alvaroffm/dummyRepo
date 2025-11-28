@@ -1,158 +1,102 @@
 # Prototipo Streamlit - DummyRepo
 
-Una aplicación de **Control Configuration Dashboard** con Streamlit que simula un sistema de monitoreo de sensores. El proyecto incluye una estructura modular con procesamiento de datos (ETL) y dashboards interactivos compilables a ejecutable.
+Este repositorio contiene un prototipo de dashboard construido con Streamlit y una pequeña capa ETL de ejemplo. Durante el arranque se instala un `DualLogger` que duplica la salida a consola y a un fichero de log (`info.log`) e intenta capturar la salida de `logging` para que los mensajes (incluyendo los de Streamlit) queden registrados.
 
-## 📁 Estructura del Proyecto
+## Estructura relevante
 
 ```
 dummyRepo/
-├── ControlConfigurationApp.py       # Punto de entrada principal (ejecutable/script)
-├── setup.py                         # Configuración para compilar con cx_Freeze
+├── ControlConfigurationApp.py       # Punto de entrada principal (script/launcher)
+├── setup.py                         # Empaquetado con cx_Freeze (incluye carpeta src)
 ├── requirements.txt                 # Dependencias Python
 ├── README.md                        # Este archivo
 ├── src/
-│   ├── __init__.py
 │   ├── data_process/
-│   │   ├── __init__.py
-│   │   └── etl.py                  # Módulo ETL: genera datos simulados
+│   │   └── etl.py                   # Módulo ETL: genera datos simulados
 │   └── dashboards/
-│       ├── utils.py                # Utilidades (ajuste de rutas)
+│       ├── utils.py                 # Utilidades (ajuste de sys.path)
 │       └── dummy1/
-│           ├── app.py              # Aplicación Streamlit principal
-│           └── dummy_script.py     # Script auxiliar
-├── mi_entorno/                      # Entorno virtual (si está incluido)
-└── build/                           # Artefactos compilados (cx_Freeze)
+│           ├── app.py               # App Streamlit (Dashboard Airbus)
+│           └── dummy_script.py      # Script auxiliar (mensaje simple)
+├── mi_entorno/                      # Entorno virtual (opcional)
+└── build/                           # Artefactos compilados por cx_Freeze
 ```
 
-## 📊 Componentes Principales
+## Comportamiento actual (resumen técnico)
 
-### 1. **ControlConfigurationApp.py** (Punto de Entrada)
-- Script que inicia la aplicación Streamlit
-- Gestiona logs en `application.log`
-- Inyecta configuración de Streamlit (`.streamlit/config.toml`, etc.)
-- Compatible tanto con ejecución directa como ejecutable compilado
+- El lanzador `ControlConfigurationApp.py` implementa `DualLogger`, que reemplaza `sys.stdout` y `sys.stderr` por un objeto que escribe tanto en la consola original como en `info.log` (archivo en la carpeta donde se ejecuta el script / ejecutable).
+- Tras reemplazar `sys.stdout` se reconfigura el módulo `logging` (con `logging.basicConfig(..., stream=sys.stdout, force=True)`) para intentar que los mensajes de logging (de Streamlit y otros módulos) se redirijan al `DualLogger` y queden en el fichero.
+- `configurar_entorno_usuario()` copia archivos de configuración (p. ej. `config.toml`, `credentials.toml`) desde la copia incluida en el build:
+  - ruta preferida: `dashboard/src/config/`
+  - fallback: `src/config/`
+- El script construye la ruta absoluta del `app.py` esperado en `dashboard/src/dashboards/dummy1/app.py` y usa un fallback `src/dashboards/dummy1/app.py` si el anterior no existe.
+- Cuando lanza Streamlit, añade flags que ayudan a que la URL se muestre y la salida no quede en modo headless:
+  - `--browser.serverAddress=localhost`
+  - `--server.headless=false`
 
-**Funciones principales:**
-- `DualLogger`: Clase que redirige stdout/stderr tanto a consola como a archivo
-- `configurar_logs()`: Inicializa grabación de logs con timestamp
-- `configurar_entorno_usuario()`: Copia archivos de configuración de Streamlit a `~/.streamlit/`
+## Detalles por componente
 
-### 2. **src/data_process/etl.py** (Módulo de Datos)
-- Simula un proceso **ETL** (Extract, Transform, Load)
-- Genera datos aleatorios de sensores para demostración
+### `ControlConfigurationApp.py`
+- `DualLogger` (clase): duplica la salida a la terminal original y a `info.log`. Implementa `write`, `flush` y maneja `isatty`/`fileno` a través de la terminal real cuando es posible.
+- `configurar_logs(application_path)`: crea/rota el log `info.log`, reemplaza `sys.stdout`/`sys.stderr` y reconfigura `logging` para usar `sys.stdout`.
+- `configurar_entorno_usuario(application_path)`: copia archivos de configuración de la copia incluida en el build hacia `~/.streamlit/`.
+- Lanzamiento: calcula `script_path` y ejecuta `stcli.main()`.
 
-**Funciones:**
-- `obtener_datos_sensores()`: Crea un DataFrame con 20 registros aleatorios de 3 columnas:
-  - **Presión** (valores aleatorios)
-  - **Temperatura** (valores aleatorios)
-  - **Vibración** (valores aleatorios)
-- `obtener_mensaje_estado()`: Devuelve estado del sistema ("ONLINE")
+### `src/data_process/etl.py`
+- `obtener_datos_sensores()`: genera un `DataFrame` de 20 filas con columnas `Presión`, `Temperatura`, `Vibración` (datos aleatorios).
+- `obtener_mensaje_estado()`: devuelve un string de estado ("Sistemas de datos: ONLINE").
 
-### 3. **src/dashboards/dummy1/app.py** (Aplicación Streamlit)
-Dashboard interactivo que:
-- Ajusta rutas automáticamente para importar módulos desde `src/`
-- Obtiene datos del módulo ETL
-- Muestra estado del sistema
-- Renderiza dos columnas:
-  - **Tendencias**: Gráfico de líneas con evolución de datos
-  - **Distribución**: Gráfico de barras (Presión)
-- Tabla detallada con datos procesados
+### `src/dashboards/dummy1/app.py` (Dashboard)
+- Ajusta `sys.path` subiendo 3 niveles para poder importar `src.data_process.etl`.
+- Configura la página con `st.set_page_config(...)` (título: "Dashboard Airbus").
+- Permite seleccionar vistas (Presión/Temperatura/Vibración) y muestra gráficos de línea y tablas.
+- Emite mensajes con `logging.info(...)` para marcar eventos (datos cargados, dashboard renderizado).
 
-**Funciones:**
-- `arreglar_ruta_raiz()`: Añade la raíz del proyecto a `sys.path` (obligatorio antes de importaciones)
-- `obtener_ruta_icono()`: Busca recursivamente un icono personalizado
-- `main()`: Función principal con lógica de UI
+### `src/dashboards/utils.py`
+- `ajustar_path_proyecto()`: función auxiliar para añadir la raíz del proyecto a `sys.path` (sube 2 niveles desde `dashboards/` en la implementación actual).
 
-### 4. **src/dashboards/utils.py** (Utilidades)
-Contiene la función `ajustar_path_proyecto()` para resolver importaciones desde subcarpetas.
+## Cómo ejecutar (Windows, PowerShell)
 
-## 🚀 Uso
-
-### Opción 1: Ejecutar como Script (Desarrollo)
+1) Activar entorno virtual (si existe):
 
 ```powershell
-# Activar el entorno virtual (si está incluido)
 .\mi_entorno\Scripts\Activate.ps1
+```
 
-# O crear uno nuevo
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+2) Ejecutar el launcher (recomendado — captura logs y copia configuración):
 
-# Ejecutar la app desde la raíz del proyecto
+```powershell
 python ControlConfigurationApp.py
 ```
 
-Esto iniciará Streamlit en `http://localhost:8501` con la aplicación en ejecución.
-
-### Opción 2: Ejecutar Streamlit Directamente
+3) O ejecutar Streamlit directamente para desarrollo:
 
 ```powershell
-# Desde la raíz del proyecto
 streamlit run src/dashboards/dummy1/app.py
 ```
 
-### Opción 3: Compilar a Ejecutable (cx_Freeze)
+4) Compilar con `cx_Freeze`:
 
 ```powershell
-# Compilar el proyecto
 python setup.py build
-
-# El ejecutable se encontrará en:
-# .\build\exe.win-amd64-3.12\ControlConfigurationApp.exe
 ```
 
-**Nota:** El `setup.py` incluye automáticamente la carpeta `src` en el ejecutable.
+## Dependencias
 
-## 📦 Dependencias
+Las dependencias principales que necesita el proyecto son (ver `requirements.txt`):
 
-Las principales dependencias son:
+- streamlit
+- pandas
+- numpy
+- altair
+- cx-Freeze (solo para empaquetado)
 
-- **streamlit** (>=1.0): Framework para dashboards interactivos
-- **pandas** (>=1.0): Manipulación de datos
-- **numpy**: Computación numérica
-- **altair**: Visualizaciones (usado por Streamlit)
-- **cx-Freeze**: Empaquetamiento a ejecutable (desarrollo)
+## Notas y recomendaciones
 
-Para instalar:
-
-```powershell
-pip install -r requirements.txt
-```
-
-Ver `requirements.txt` para la lista completa con versiones.
-
-## 🔧 Configuración de Streamlit
-
-Los archivos de configuración se encuentran en `src/.streamlit/`:
-- `config.toml`: Configuración de Streamlit
-- `credentials.toml`: Credenciales (si las hay)
-
-Estos se copian automáticamente a `~/.streamlit/` al ejecutar `ControlConfigurationApp.py`.
-
-## 📝 Comentarios en el Código
-
-Todos los scripts han sido actualizados con comentarios claros y precisos:
-- **ControlConfigurationApp.py**: Documentado en pasos numerados (1-5)
-- **src/dashboards/dummy1/app.py**: Secciones bien marcadas con docstrings
-- **src/dashboards/utils.py**: Función con documentación completa
-- **src/data_process/etl.py**: Docstrings descriptivos
-
-## 🐛 Troubleshooting
-
-### Error: "No module named 'src'"
-Asegúrate de ejecutar desde la **raíz del proyecto** (`dummyRepo/`).
-
-### Error: "favicon.ico not found"
-El icono es opcional. La app usará ✈️ como fallback si no lo encuentra.
-
-### Logs no se graban
-Verifica permisos de escritura en el directorio de la aplicación. Los logs se guardan en `application.log`.
-
-## 📄 Licencia
-
-Este es un proyecto de prototipo/demostración. Ajusta según tus necesidades.
+- Si no ves los banners de Streamlit en consola al ejecutar `ControlConfigurationApp.py`, revisa el orden de importación de Streamlit en tu entorno: algunos mensajes se pueden imprimir durante la importación del paquete, antes de que `sys.stdout` sea reemplazado. La implementación actual intenta reconfigurar `logging` para redirigir la salida a `DualLogger`, pero capturar impresiones a muy bajo nivel (C) podría requerir redirección de descriptores de archivo (`os.dup2`) si fuera necesario.
+- `configurar_entorno_usuario()` busca `config.toml` en la copia incluida en el build (`dashboard/src/config`), si tu `setup.py` copia los archivos a otra ruta, actualiza esta función.
+- Si quieres que genere un `requirements.txt` con versiones exactas desde `mi_entorno`, puedo activarlo y volcar `pip freeze`.
 
 ---
 
-**Última actualización:** Noviembre 2025
+**Última actualización:** $(Get-Date -Format "yyyy-MM-dd")
