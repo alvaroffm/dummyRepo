@@ -1,55 +1,61 @@
-# Prototipo Streamlit - DummyRepo (estado actualizado)
+# PrototipoApp / Dashboard
 
-Este repositorio contiene un prototipo de dashboard Streamlit con una capa ETL de ejemplo.
-El launcher (`ControlConfigurationApp.py`) instala un `DualLogger` que duplica la salida a consola y a `info.log`.
+Este proyecto es una aplicación de dashboard desarrollada con Streamlit para visualizar datos de sensores (Presión, Temperatura, Vibración). Está diseñado para ser empaquetado como un ejecutable independiente utilizando `cx_Freeze`.
 
-## Archivos clave
+## Descripción
 
-- `ControlConfigurationApp.py`: lanzador principal. Sustituye `sys.stdout`/`sys.stderr` por `DualLogger`, reconfigura `logging` para apuntar a `sys.stdout` y lanza Streamlit con `stcli.main()`.
-- `setup.py`: configuración de `cx_Freeze` (incluye la carpeta `src` en el build y define la versión).
-- `requirements.txt`: dependencias mínimas (`streamlit`, `pandas`, `numpy`, `altair`, `cx-Freeze`).
-- `src/data_process/etl.py`: módulo ETL que genera datos simulados (Presión, Temperatura, Vibración).
-- `src/dashboards/dummy1/app.py`: aplicación Streamlit; ajusta `sys.path`, importa `etl`, muestra gráficos y tablas.
-- `src/dashboards/utils.py`: utilidades para ajustar `sys.path` desde carpetas profundas.
+La aplicación permite monitorizar el estado de sistemas y visualizar métricas en tiempo real. Incluye:
+-   **Dashboard Interactivo**: Visualización de tendencias y datos detallados.
+-   **Filtrado Dinámico**: Selección de métricas específicas (Presión, Temperatura, Vibración).
+-   **Sistema de Logs**: Registro dual en consola y archivo (`info.log`).
+-   **Configuración Automática**: Gestión de archivos de configuración de Streamlit en el entorno del usuario.
 
-## Notas sobre el logger y Streamlit
+## Estructura del Proyecto
 
-- `DualLogger` implementa `write()` y `flush()` y reemplaza `sys.stdout`/`sys.stderr`.
-- Inmediatamente después de reemplazar `sys.stdout`, `configurar_logs()` reconfigura `logging` con `stream=sys.stdout` para que los mensajes de logging (incluyendo los que Streamlit emite a través de logging) se registren en `info.log`.
-- Para capturar impresiones de muy bajo nivel (por ejemplo código C que escribe directamente al descriptor de archivo 1/2), se requeriría redirección de descriptores (`os.dup2`). Actualmente el proyecto usa la solución basada en `logging` y `DualLogger`.
+-   `ControlConfigurationApp.py`: Script principal de entrada (launcher) que configura el entorno y lanza Streamlit.
+-   `setup.py`: Script de configuración para compilar el proyecto con `cx_Freeze`.
+-   `src/`: Código fuente del proyecto.
+    -   `dashboards/dummy1/app.py`: Lógica principal del dashboard de Streamlit.
+    -   `data_process/etl.py`: Simulación de proceso ETL para generación de datos.
+    -   `config/`: Archivos de configuración (`config.toml`, `credentials.toml`).
 
-## Ejecución (PowerShell)
+## Instalación
 
-Activar entorno (si existe):
+1.  Clona el repositorio.
+2.  Crea un entorno virtual (opcional pero recomendado).
+3.  Instala las dependencias:
 
-```powershell
-.\mi_entorno\Scripts\Activate.ps1
+```bash
+pip install -r requirements.txt
 ```
 
-Ejecutar el lanzador (recomendado):
+## Uso
 
-```powershell
+### Ejecución Local
+
+Para ejecutar la aplicación en modo desarrollo:
+
+**Opción A: Usando el launcher (recomendado para probar el flujo completo)**
+```bash
 python ControlConfigurationApp.py
 ```
 
-Ejecutar Streamlit en modo desarrollo:
-
-```powershell
+**Opción B: Ejecutando directamente Streamlit**
+```bash
 streamlit run src/dashboards/dummy1/app.py
 ```
 
-Compilar con cx_Freeze:
+### Construcción del Ejecutable
 
-```powershell
+Para generar el ejecutable independiente (Windows):
+
+```bash
 python setup.py build
 ```
 
-## Estado actual de los scripts
+Esto creará una carpeta `build/` con el ejecutable y todas las dependencias necesarias.
 
-- `ControlConfigurationApp.py`: logger activo, rutas al `app.py` calculadas con fallback.
-- `src/dashboards/dummy1/app.py`: vista interactiva con selección de métricas y visualizaciones.
-- `src/data_process/etl.py`: funciones `obtener_datos_sensores()` y `obtener_mensaje_estado()`.
+## Notas Adicionales
 
----
-
-**Última actualización:** $(Get-Date -Format "yyyy-MM-dd")
+-   El sistema incluye un mecanismo de limpieza de logs automático (mantiene los últimos 10 inicios).
+-   Al ejecutar el binario compilado, la aplicación inyectará automáticamente la configuración necesaria en la carpeta `.streamlit` del usuario.
