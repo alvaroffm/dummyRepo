@@ -27,7 +27,7 @@ except ImportError as e:
 
 
 # --- 3. FUNCIONES DE UTILIDAD ---
-def obtener_ruta_icono(nombre_icono="icono.png"):
+def obtener_ruta_icono(nombre_icono="favicon.ico"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
     while True:
         ruta_potencial = os.path.join(ruta_actual, nombre_icono)
@@ -42,7 +42,7 @@ def obtener_ruta_icono(nombre_icono="icono.png"):
 # --- 4. APLICACIÓN PRINCIPAL ---
 def main():
     # -- Configuración Inicial --
-    ruta_icono = obtener_ruta_icono("icono.png")
+    ruta_icono = obtener_ruta_icono("favicon.ico")
     icono_final = ruta_icono if ruta_icono else "✈️"
 
     st.set_page_config(
