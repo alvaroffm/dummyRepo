@@ -17,7 +17,7 @@ class DualLogger(object):
     def write(self, message):
         try:
             self.terminal.write(message)
-        except:
+        except Exception:
             pass
         try:
             self.log.write(message)
@@ -28,7 +28,7 @@ class DualLogger(object):
         try:
             self.terminal.flush()
             self.log.flush()
-        except:
+        except Exception:
             pass
 
 
